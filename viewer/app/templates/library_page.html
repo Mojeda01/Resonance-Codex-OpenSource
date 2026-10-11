@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ b.slug }} {{ pid }} &middot; Library{% endblock %}
+{% block content %}
+  <nav class="crumbs"><a href="{{ url_for('main.index') }}">Resonance</a> / <a href="{{ url_for('library.index') }}">Library</a> /
+    <a href="{{ url_for('library.book', slug=b.slug) }}">{{ b.slug }}</a> / <span>{{ pid }}</span></nav>
+  <nav class="pager">
+    {% if prev_n is not none %}<a id="prev" href="{{ url_for('library.page', slug=b.slug, n=prev_n) }}">&larr; p{{ '%05d'|format(prev_n) }}</a>{% else %}<span></span>{% endif %}
+    {% if next_n is not none %}<a id="next" href="{{ url_for('library.page', slug=b.slug, n=next_n) }}">p{{ '%05d'|format(next_n) }} &rarr;</a>{% endif %}
+  </nav>
+  <h1>{{ b.title }} <span class="dim">&middot; {{ pid }}</span></h1>
+  <p class="meta">PDF page {{ n + 1 }} of {{ total }}
+    &middot; OCR: {% if has_ocr %}<span style="color:var(--ok)">available</span>{% else %}<span class="flag">not yet converted</span>{% endif %}
+    &middot; summary: {% if summary %}<a href="{{ summary_url }}">open in knowledge view</a>{% elif b.domain %}<span class="dim">none</span>{% else %}<span class="dim">no domain linked</span>{% endif %}
+    &middot; <button type="button" class="link" id="redo-page" data-n="{{ n }}">re-OCR this page</button>
+    <select id="redo-mode" class="miniselect"><option value="default">default</option><option value="force_ocr">force OCR</option><option value="text_layer">text layer only</option></select>
+    <span id="redo-msg" class="dim"></span></p>
+  <div id="job-banner" class="banner" hidden></div>
+
+  <div class="srcview">
+    <section class="srcpanel">
+      <h3 class="sub">original page</h3>
+      <a href="{{ url_for('library.render', slug=b.slug, n=n) }}" target="_blank" rel="noopener">
+        <img class="pdfimg" src="{{ url_for('library.render', slug=b.slug, n=n) }}" alt="PDF page {{ n + 1 }}" loading="lazy"></a>
+    </section>
+    <section class="srcpanel">
+      <h3 class="sub">OCR text <button type="button" class="link" id="toggle-raw">show raw</button></h3>
+      {% if has_ocr %}<div class="body" id="ocr-body"></div><pre class="rawmd" id="ocr-raw" hidden></pre>
+      {% else %}<p class="dim">This page has no OCR output yet. Use <b>re-OCR this page</b> above, or run the book from its
+        <a href="{{ url_for('library.book', slug=b.slug) }}">control panel</a>.</p>{% endif %}
+    </section>
+    <section class="srcpanel">
+      <h3 class="sub">summary <select id="sum-versions" class="miniselect" hidden></select>
+        <a href="{{ url_for('library.summarise_page', slug=b.slug, n=n) }}" class="dim" style="float:right">test / re-summarise &rarr;</a></h3>
+      <p class="dim" id="sum-meta"></p>
+      {% if summary %}<div class="body" id="sum-body"></div>
+      {% else %}<p class="dim">No summary for this page.</p>{% endif %}
+    </section>
+  </div>
+
+  <script id="lp-data" type="application/json">{{ payload|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/libpage.js') }}"></script>
+{% endblock %}

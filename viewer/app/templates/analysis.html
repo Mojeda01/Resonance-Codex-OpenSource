@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ domain }} analysis{% endblock %}
+{% macro n(x) %}{{ "{:,}".format(x|round|int) }}{% endmacro %}
+{% block content %}
+  <h1>{{ domain }} / analysis</h1>
+  <p class="meta">
+    token usage and text structure of the DeepSeek summaries &middot;
+    <a href="{{ url_for('main.metrics_csv', domain=domain) }}">download CSV</a> &middot;
+    <a href="{{ url_for('main.index') }}#{{ domain }}">overview</a>
+  </p>
+  <nav class="kinds sectnav">
+    {% for id, t in (('tokens','tokens'),('heat','page heatmap'),('scatter','input vs thinking'),('dist','distributions'),('outliers','outliers'),('budget','budget'),('structure','structure'),('quality','quality'),('table','all pages')) %}<a href="#{{ id }}">{{ t }}</a>{% endfor %}
+  </nav>
+
+  <div class="kpis">
+    <div><b>{{ n(m.totals.pages) }}</b><span>pages</span></div>
+    <div><b>{{ n(m.totals.prompt) }}</b><span>prompt tokens</span></div>
+    <div><b>{{ n(m.totals.summary_tokens) }}</b><span>summary tokens</span></div>
+    <div><b>{{ n(m.totals.reasoning_tokens) }}</b><span>thinking tokens</span></div>
+    <div><b>{{ m.totals.think_ratio }}&times;</b><span>thinking ÷ summary</span></div>
+    <div><b>{{ m.totals.med_compression }}</b><span>median summary ÷ input</span></div>
+    <div><b>{{ m.totals.cached_pct }}%</b><span>median prompt cache hit</span></div>
+    <div><b>{{ m.totals.outliers }}</b><span>outlier pages</span></div>
+  </div>
+  <p class="dim note">Input size is estimated as prompt tokens minus the fixed instruction overhead
+    ({{ m.totals.baseline_prompt }} tokens, the smallest prompt seen). The original page files are not used, because
+    every domain records the same <code>out/pages/</code> path and only one book lives there. Summary tokens =
+    completion tokens &minus; reasoning tokens.</p>
+
+  <section id="tokens" class="asec">
+    <h2 class="xh">Tokens by chapter</h2>
+    <p class="ctl"><button class="seg on" data-mode="mean">mean per page</button><button class="seg" data-mode="total">total</button>
+      <span class="legend"><i class="sw s1"></i>summary <i class="sw s2"></i>thinking</span></p>
+    <div id="chart-chapters" class="hbars"></div>
+  </section>
+
+  <section id="heat" class="asec">
+    <h2 class="xh">Page heatmap</h2>
+    <p class="ctl"><select id="heat-metric"></select>
+      <span class="dim">colour = percentile rank within this domain &middot; amber outline = truncated &middot; dot = outlier &middot; faded = front/back matter</span></p>
+    <div id="heat-info" class="heat-info dim">hover a page</div>
+    <div id="heatmap"></div>
+  </section>
+
+  <section id="scatter" class="asec">
+    <h2 class="xh">Input size vs thinking tokens</h2>
+    <p class="dim">Each dot is a page (log&ndash;log). Pages far above the cloud made the model think much more than its input size predicts.</p>
+    <div id="scatter-chart"></div>
+  </section>
+
+  <section id="dist" class="asec">
+    <h2 class="xh">Distributions</h2>
+    <div id="hists" class="hists"></div>
+  </section>
+
+  <section id="outliers" class="asec">
+    <h2 class="xh">Outliers ({{ m.outliers|length }} flags on {{ m.totals.outliers }} pages)</h2>
+    <p class="dim">Robust z-score on a log scale (median &amp; MAD), |z| &ge; 3.5, judged among content pages only (front/back matter and truncated pages are excluded).</p>
+    {% if m.outliers %}
+    <table class="atable"><thead><tr><th>page</th><th>metric</th><th>value</th><th>median</th><th>z</th><th>reading</th></tr></thead><tbody>
+      {% for o in m.outliers[:60] %}<tr>
+        <td><a href="{{ url_for('main.page', domain=domain, page_id=o.page_id) }}">{{ o.page_id }}</a> <span class="dim">{{ rows[o.page_id].label[:34] }}</span></td>
+        <td>{{ o.title }}</td><td class="num">{{ o.value }}</td><td class="num dim">{{ o.median }}</td>
+        <td class="num {{ 'hi' if o.dir == 'high' else 'lo' }}">{{ '%+.1f'|format(o.z) }}</td><td class="dim">{{ o.note }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% if m.outliers|length > 60 %}<p class="dim">showing the 60 strongest of {{ m.outliers|length }}; the full table below can be sorted by &ldquo;outlier&rdquo;.</p>{% endif %}
+    {% else %}<p class="dim">none</p>{% endif %}
+  </section>
+
+  <section id="budget" class="asec">
+    <h2 class="xh">Budget &amp; truncation</h2>
+    {% set b = m.budget %}
+    <div class="kpis small">
+      <div><b>{{ b.limit_est or '—' }}</b><span>estimated max output (largest cut-off page)</span></div>
+      <div><b>{{ b.n_length }}</b><span>pages ended by length</span></div>
+      <div><b>{{ n(b.p50) }} / {{ n(b.p95) }} / {{ n(b.p99) }}</b><span>completion p50 / p95 / p99</span></div>
+      <div><b>{{ n(b.suggest) }}</b><span>suggested budget (p99 + 15%)</span></div>
+    </div>
+    {% if b.by_chapter %}<p>Cut-off pages by chapter:
+      {% for ch, c in b.by_chapter.items() %}<span class="chip warn">{{ ch }} &times; {{ c }}</span>{% endfor %}</p>{% endif %}
+    {% if b.near_limit %}<h3 class="sub">within 20% of the limit but finished</h3>
+      <p>{% for r in b.near_limit %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=r.page_id) }}">{{ r.page_id }} {{ r.pct }}%</a>{% endfor %}</p>
+    {% else %}<p class="dim">no finished page came within 20% of the limit.</p>{% endif %}
+    <p class="dim">Thinking tokens count towards the completion budget, so a high-thinking page can exhaust it before the summary is written.</p>
+  </section>
+
+  <section id="structure" class="asec">
+    <h2 class="xh">Structure fingerprint</h2>
+    <p class="ctl"><span class="legend">
+      <i class="sw c-defs"></i>definitions <i class="sw c-results"></i>theorem-like <i class="sw c-proofs"></i>proofs
+      <i class="sw c-examples"></i>examples <i class="sw c-remarks"></i>remarks <i class="sw c-tables"></i>tables</span></p>
+    <div id="chart-structure" class="hbars"></div>
+    <h3 class="sub">section vocabulary (share of content pages that use each)</h3>
+    <div class="cover">
+      {% for k, v in m.template.coverage.items() %}
+        <div><span>{{ k }}</span><i style="--w: {{ v }}%"></i><b>{{ v }}%</b></div>{% endfor %}
+    </div>
+    <p class="dim">{{ m.template.flat|length }} long page(s) have no headings or bold lead-ins at all (flat prose):
+      {% for p in m.template.flat[:20] %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=p) }}">{{ p }}</a>{% endfor %}</p>
+  </section>
+
+  <section id="quality" class="asec">
+    <h2 class="xh">Quality checks</h2>
+
+    <h3 class="sub">pages that say a proof is deferred or incomplete ({{ qa.gaps|length }})</h3>
+    {% if qa.gaps %}<p>{% for r in qa.gaps[:80] %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=r.page_id) }}">{{ r.page_id }}{% if r.gap_count > 1 %}&times;{{ r.gap_count }}{% endif %}</a>{% endfor %}</p>{% endif %}
+    <p class="dim">{{ m.totals.cut }} pages mention being cut at a page boundary &mdash; expected, since pages are chunks of the PDF. Per chapter in the table at the bottom.</p>
+
+    <h3 class="sub">theorem-like results cited but never stated in this corpus ({{ qa.undef|length }}{% if qa.undef|length == 30 %}+{% endif %})</h3>
+    {% for r in qa.undef %}<div class="xrow"><a href="{{ url_for('main.page', domain=domain, page_id=r.page_id) }}">{{ r.page_id }}</a>
+      <span class="dim">{% for u in r.undef_refs[:6] %}<a class="xr" href="{{ url_for('main.ref', domain=domain, slug=(u|lower|replace(' ', '-'))) }}">{{ u }}</a>{{ ', ' if not loop.last }}{% endfor %}</span></div>{% else %}<p class="dim">none</p>{% endfor %}
+
+    <h3 class="sub">reasoning traces most concerned about the source (OCR damage, illegible, ambiguous&hellip;)</h3>
+    {% for r in qa.uncertain[:15] %}<div class="xrow"><a href="{{ url_for('main.page', domain=domain, page_id=r.page_id) }}">{{ r.page_id }}</a>
+      <span class="dim">{{ r.uncertainty }} mentions &middot; {{ r.uncertainty_density }} per 1k chars &middot; {{ r.label[:40] }}</span></div>{% endfor %}
+
+    <h3 class="sub">near-duplicate summaries</h3>
+    {% if m.dups %}{% for d in m.dups[:20] %}<div class="xrow"><a href="{{ url_for('main.page', domain=domain, page_id=d.a) }}">{{ d.a }}</a> &harr;
+      <a href="{{ url_for('main.page', domain=domain, page_id=d.b) }}">{{ d.b }}</a> <span class="dim">{{ (d.score * 100)|round|int }}% shared wording</span></div>{% endfor %}
+    {% else %}<p class="dim">none found (6-word shingles, &ge;35% overlap, content pages only).</p>{% endif %}
+  </section>
+
+  <section id="table" class="asec">
+    <h2 class="xh">All pages</h2>
+    <p class="ctl"><input type="text" id="tbl-filter" class="wide" placeholder="filter by page, chapter or label&hellip;">
+      <label class="dim"><input type="checkbox" id="tbl-content" checked> hide front/back matter</label></p>
+    <div class="tscroll"><table class="atable sortable" id="tbl"></table></div>
+  </section>
+
+  <script id="analysis-data" type="application/json">{{ data|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/analysis.js') }}"></script>
+{% endblock %}

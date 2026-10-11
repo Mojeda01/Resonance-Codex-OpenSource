@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% macro n(x) %}{{ "{:,}".format(x|round|int) }}{% endmacro %}
+{% block content %}
+  <h1>Resonance Knowledge Platform</h1>
+  <p class="meta">ground-truth knowledge extracted from {{ cards|length }} source{{ '' if cards|length == 1 else 's' }}</p>
+
+  <form action="{{ url_for('main.search') }}" class="bigsearch">
+    <input type="search" name="q" class="wide" placeholder="search every summary, across all sources&hellip;" autocomplete="off">
+    <select name="domain"><option value="">all sources</option>
+      {% for d in cards %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select>
+    <button type="submit">search</button>
+  </form>
+  <p class="meta"><a id="continue-any" href="#" hidden></a>
+     <a href="{{ url_for('library.index') }}">Library &amp; OCR</a> &middot;
+     <button type="button" class="link" id="open-palette-2">go to page ( g )</button> &middot;
+     <button type="button" class="link" id="open-help">shortcuts ( ? )</button></p>
+
+  {# ---- dataset summary across all sources ---- #}
+  {% set tot = overall.clean + overall.review + overall.excluded %}
+  <section class="dsum">
+    <div class="kpis">
+      <div><b>{{ n(tot) }}</b><span>pages</span></div>
+      <div class="k-clean"><b>{{ n(overall.clean) }}</b><span>clean &middot; {{ (100 * overall.clean / (tot or 1))|round|int }}%</span></div>
+      <div class="k-review"><b>{{ n(overall.review) }}</b><span>need review</span></div>
+      <div class="k-excl"><b>{{ n(overall.excluded) }}</b><span>excluded</span></div>
+      <div><b>{{ n(tokens.clean) }}</b><span>clean summary tokens</span></div>
+      <div><b>{{ n(tokens.clean + tokens.review) }}</b><span>tokens if reviewed pages included</span></div>
+    </div>
+    <div class="tierbar big" title="clean / review / excluded">
+      <i class="t-clean" style="width: {{ 100 * overall.clean / (tot or 1) }}%"></i><i class="t-review" style="width: {{ 100 * overall.review / (tot or 1) }}%"></i><i class="t-excluded" style="width: {{ 100 * overall.excluded / (tot or 1) }}%"></i>
+    </div>
+    <p class="dim note"><b>clean</b>: full summary, finished normally, nothing flagged &middot;
+      <b>review</b>: usable, but an outlier, deferred proof, doubtful source or flat prose &middot;
+      <b>excluded</b>: empty, cut off by the output limit, or no content (front/back matter).</p>
+  </section>
+
+  <div id="recent-home" hidden></div>
+
+  <div class="dgrid">
+  {% for d, c in cards.items() %}
+    {% set t = c.t %}
+    <section class="dcard" id="{{ d }}" data-domain="{{ d }}">
+      <header>
+        <h2>{{ d }}</h2>
+        <a class="continue cbtn" data-domain="{{ d }}" href="#" hidden></a>
+      </header>
+      <p class="actions">
+        {% if c.first %}<a href="{{ url_for('main.page', domain=d, page_id=c.first) }}">start</a>{% endif %}
+        <a href="{{ url_for('main.read', domain=d) }}">read all</a>
+        <a href="{{ url_for('main.xref_index', domain=d) }}">index</a>
+        <a href="{{ url_for('main.analysis', domain=d) }}">analysis</a>
+        <a href="{{ url_for('main.dataset', domain=d, tier='clean') }}" title="JSONL of clean pages">export clean set</a>
+      </p>
+
+      <div class="tierbar" title="clean / review / excluded">
+        <i class="t-clean" style="width: {{ 100 * t.tiers.clean / t.pages }}%"></i><i class="t-review" style="width: {{ 100 * t.tiers.review / t.pages }}%"></i><i class="t-excluded" style="width: {{ 100 * t.tiers.excluded / t.pages }}%"></i>
+      </div>
+      <p class="tiernums"><span class="tn clean">{{ t.tiers.clean }} clean</span><span class="tn review">{{ t.tiers.review }} review</span><span class="tn excluded">{{ t.tiers.excluded }} excluded</span></p>
+
+      <dl class="mini">
+        <dt>usable tokens</dt><dd>{{ n(t.tier_tokens.clean) }} <span class="dim">(+{{ n(t.tier_tokens.review) }} review)</span></dd>
+        <dt>definitions / results</dt><dd>{{ c.n_defs }} / {{ c.n_results }}</dd>
+        <dt>spent per clean token</dt><dd>{{ t.cost_ratio }}&times; <span class="dim">({{ n(t.spent) }} total)</span></dd>
+        <dt>thinking ÷ summary</dt><dd>{{ t.think_ratio }}&times;</dd>
+        <dt>you have opened</dt><dd><span class="prog" data-domain="{{ d }}" data-total="{{ t.pages }}"><i></i></span> <span class="progtxt dim">0 / {{ t.pages }}</span></dd>
+      </dl>
+
+      <div class="ctl heatctl"><select class="heat-metric" data-domain="{{ d }}"></select>
+        <a class="rnd" href="{{ url_for('main.random_page', domain=d, kind='definition') }}">random definition</a>
+        <a class="rnd" href="{{ url_for('main.random_page', domain=d, kind='result') }}">random theorem</a>
+        <a class="rnd unread" href="#" data-domain="{{ d }}">random unread</a></div>
+      <div class="heat-info dim" data-info="{{ d }}">hover a page</div>
+      <div class="miniheat" data-heat="{{ d }}"></div>
+
+      {% if t.reasons %}
+        <h3 class="sub">review queue</h3>
+        <p class="queue">{% for k, v in c.queue %}<a class="chip {{ 'warn' if k in ('truncated', 'empty', 'outlier', 'deferred proof', 'source doubt') else '' }}" href="{{ url_for('main.problems', domain=d, kind=k) }}">{{ v }} {{ k }}</a>{% endfor %}</p>
+      {% endif %}
+      {% if c.weakest %}
+        <h3 class="sub">weakest chapters (clean share)</h3>
+        <p class="queue">{% for ch in c.weakest %}<a class="chip" href="{{ url_for('main.page', domain=d, page_id=ch.first) }}">{{ ch.label }} &middot; {{ (100 * ch.clean / ch.pages)|round|int }}% of {{ ch.pages }}</a>{% endfor %}</p>
+      {% endif %}
+
+      <details class="fold"><summary>chapter outline ({{ c.chapters|length }})</summary>
+        <div class="outline">
+          {% for ch in c.chapters %}
+            <a id="{{ d }}-{{ ch.key }}" href="{{ url_for('main.page', domain=d, page_id=ch.first) }}">
+              <b>{{ ch.label }}</b> <span class="dim">{{ ch.first }}&ndash;{{ ch.last }} &middot; {{ ch.count }}p</span>
+              <i class="bar" style="width: {{ (ch.count * 100 / t.pages)|round(1) }}%"></i></a>
+          {% endfor %}
+        </div>
+      </details>
+      {% if c.top %}
+        <details class="fold"><summary>most referenced</summary>
+          <ul class="topref">
+            {% for e in c.top %}
+              <li><a href="{{ url_for('main.ref', domain=d, slug=e.slug) }}">{{ e.label }}</a>
+                {% if e.name %}<span class="dim">({{ e.name }})</span>{% endif %}
+                <span class="dim">&middot; {{ e.used_on|length }} pages</span></li>
+            {% endfor %}
+          </ul>
+        </details>
+      {% endif %}
+    </section>
+  {% endfor %}
+  </div>
+
+  {% if shared %}
+    <section class="dcard shared">
+      <h2>concepts that appear in more than one source</h2>
+      <p class="dim">Named definitions in one source that are also used in another &mdash; where the sources overlap.</p>
+      {% for s in shared %}
+        <div class="xrow"><b>{{ s.term }}</b>
+          {% for d, pages in s.pages.items() %}
+            <span class="dim">&middot; {{ d }} ({{ s.counts[d] }})</span>
+            {% for pid in pages[:3] %}<a class="pid" href="{{ url_for('main.page', domain=d, page_id=pid, q=s.term) }}">{{ pid }}</a>{% endfor %}
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  <script id="ov-data" type="application/json">{{ heat|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/overview.js') }}"></script>
+{% endblock %}

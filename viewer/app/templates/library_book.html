@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ b.title }} &middot; Library{% endblock %}
+{% block content %}
+  <nav class="crumbs"><a href="{{ url_for('main.index') }}">Resonance</a> / <a href="{{ url_for('library.index') }}">Library</a> / <span>{{ b.slug }}</span></nav>
+  <h1>{{ b.title }}</h1>
+  <p class="meta">{{ b.pdf.name }} &middot; {{ "{:,}".format(total) }} pages &middot;
+    <span id="n-done">{{ ndone }}</span> OCR'd &middot; {{ nsumm }} summarised
+    {% if b.domain %}&middot; <a href="{{ url_for('main.index') }}#{{ b.domain }}">knowledge: {{ b.domain }}</a>{% endif %}
+    &middot; output <code>{{ 'out/' if b.legacy else 'out/' ~ b.slug ~ '/' }}pages/</code></p>
+
+  <section class="ocrpanel">
+    <h2 class="xh">OCR (Marker)</h2>
+    <p class="dim note">Pages are converted <b>one at a time</b>, each in a fresh process, so the models are loaded and freed for every page
+      (the same as <code>run.py</code>). The first page of a run is slower while models load. Stopping never loses finished pages.</p>
+
+    <div class="ocrform">
+      <label>pages
+        <select id="f-select">
+          <option value="missing">all missing ({{ total - ndone }})</option>
+          <option value="range">a range&hellip;</option>
+        </select></label>
+      <span id="f-range" hidden>
+        <label>from p <input type="number" id="f-start" min="0" max="{{ total - 1 }}" value="0"></label>
+        <label>to p <input type="number" id="f-end" min="0" max="{{ total - 1 }}" value="{{ total - 1 }}"></label>
+      </span>
+      <label>method
+        <select id="f-mode">
+          <option value="default">default (Marker decides)</option>
+          <option value="text_layer">text layer only &mdash; fast, light</option>
+          <option value="force_ocr">force OCR &mdash; slow, for scans</option>
+        </select></label>
+      <label title="Wait this long after each page, to let the machine cool or catch up">pause <input type="number" id="f-pause" min="0" max="300" value="0"> s</label>
+      <label title="Stop after this many pages (0 = no limit)">max pages <input type="number" id="f-max" min="0" value="0"></label>
+      <label title="Kill a page that takes longer than this">timeout <input type="number" id="f-timeout" min="60" max="3600" value="900"> s</label>
+      <label class="chk" title="Re-convert pages that already have output (the old output is kept as .md.prev until the new one is written)"><input type="checkbox" id="f-redo"> re-convert existing</label>
+    </div>
+
+    <p class="ocrbtns">
+      <button type="button" id="btn-start" class="primary">Start OCR</button>
+      <button type="button" id="btn-stop" disabled>Stop after this page</button>
+      <button type="button" id="btn-cancel" class="danger" disabled>Cancel now</button>
+      <span id="job-msg" class="dim"></span>
+    </p>
+
+    <div id="job-box" class="jobbox" hidden>
+      <div class="jobline"><b id="job-status">idle</b> <span id="job-detail" class="dim"></span></div>
+      <div class="tierbar big"><i class="t-clean" id="job-bar" style="width:0"></i></div>
+      <div class="dim" id="job-eta"></div>
+      <details class="fold"><summary>log</summary><pre class="joblog" id="job-log"></pre></details>
+    </div>
+  </section>
+
+  <p class="actions"><a class="cbtn" href="{{ url_for('library.summarise_page', slug=b.slug) }}" style="color:#fff">Summarise with DeepSeek &rarr;</a>
+    <span class="dim">prompt editor, live-streamed test, batch run, re-run of flagged pages</span></p>
+
+  <h2 class="xh">Pages</h2>
+  <p class="ctl dim"><span class="legend2"><i class="sw s1"></i>OCR done <i class="sw missing"></i>missing <i class="sw run"></i>running <i class="sw bad"></i>failed
+    &middot; dot = has a summary &middot; click a page to view it next to the original</span></p>
+  <div class="libcells" id="libcells"></div>
+
+  <script id="lib-data" type="application/json">{{ data|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/library.js') }}"></script>
+{% endblock %}

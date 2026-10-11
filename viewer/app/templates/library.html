@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Library{% endblock %}
+{% block content %}
+  <h1>Library</h1>
+  <p class="meta">source PDFs and their OCR progress &middot; <a href="{{ url_for('main.index') }}">overview</a></p>
+
+  {% if job.active %}
+    <p class="banner">OCR running on <b>{{ job.slug }}</b> &mdash;
+      <a href="{{ url_for('library.book', slug=job.slug) }}">open control panel</a></p>
+  {% endif %}
+
+  <div class="dgrid libgrid">
+    {% for r in rows %}
+      {% set b = r.book %}
+      <section class="dcard">
+        <header><h2>{{ b.title }}</h2><span class="dim">{{ b.pdf.name }}</span></header>
+        {% if r.error %}
+          <p class="flag">could not read this PDF: {{ r.error }}</p>
+        {% else %}
+          <dl class="mini">
+            <dt>PDF pages</dt><dd>{{ "{:,}".format(r.total) }}</dd>
+            <dt>OCR done</dt><dd>{{ "{:,}".format(r.done) }} <span class="dim">({{ (100 * r.done / (r.total or 1))|round|int }}%)</span></dd>
+            <dt>summarised</dt><dd>{% if b.domain %}{{ "{:,}".format(r.summarised) }} <span class="dim">in {{ b.domain }}</span>{% else %}<span class="dim">no knowledge domain linked</span>{% endif %}</dd>
+          </dl>
+          <div class="tierbar" title="OCR done"><i class="t-clean" style="width: {{ 100 * r.done / (r.total or 1) }}%"></i></div>
+          <p class="actions">
+            <a href="{{ url_for('library.book', slug=b.slug) }}">open &amp; run OCR</a>
+            {% if r.done %}<a href="{{ url_for('library.summarise_page', slug=b.slug) }}">summarise (DeepSeek)</a>{% endif %}
+            {% if r.done %}<a href="{{ url_for('library.page', slug=b.slug, n=0) }}">view pages</a>{% endif %}
+            {% if b.domain %}<a href="{{ url_for('main.index') }}#{{ b.domain }}">knowledge</a>{% endif %}
+          </p>
+          {% if b.legacy %}<p class="dim note">output lives in <code>out/</code> (the original layout). New books get their own folder, <code>out/{{ b.slug }}/</code>.</p>{% endif %}
+        {% endif %}
+      </section>
+    {% else %}
+      <p class="dim">No PDFs found in <code>material/</code>.</p>
+    {% endfor %}
+  </div>
+{% endblock %}

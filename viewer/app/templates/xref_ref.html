@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ e.label }}{% endblock %}
+{% block content %}
+  <h1>{{ e.label }}{% if e.name %} <span class="dim">({{ e.name }})</span>{% endif %}</h1>
+  <p class="meta">{{ e.kind }} in <a href="{{ url_for('main.xref_index', domain=domain) }}">{{ domain }}</a>
+    &middot; defined on {{ defined|length }} page{{ '' if defined|length == 1 else 's' }}
+    &middot; used on {{ used|length }}</p>
+  {% if not defined %}<p class="flag">No page in this corpus states or defines this.</p>{% endif %}
+  {% for title, rows in (('Defined / stated', defined), ('Used elsewhere', used)) %}
+    {% if rows %}
+      <h2 class="xh">{{ title }}</h2>
+      {% for r in rows %}
+        <div class="hit">
+          <a href="{{ url_for('main.page', domain=domain, page_id=r.page_id, q=e.label) }}">{{ r.page_id }}</a>
+          <p class="snip" data-terms="{{ e.label }}">{{ r.snippet }}</p>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+{% endblock %}

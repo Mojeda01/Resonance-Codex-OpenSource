@@ -1,0 +1,27 @@
+{% macro panel(domain, xp) %}
+  {% if xp.defines or xp.mentions %}
+  <details class="xref">
+    <summary>cross-references &mdash; {{ xp.defines|length }} defined here, {{ xp.mentions|length }} referenced</summary>
+    {% if xp.defines %}
+      <h4>Defined / stated on this page</h4>
+      <ul>{% for e in xp.defines %}
+        <li><a href="{{ url_for('main.ref', domain=domain, slug=e.slug) }}">{{ e.label }}</a>
+          {% if e.name %}<span class="dim">({{ e.name }})</span>{% endif %}
+          <span class="dim">&middot; {{ e.used_on|length }} other page{{ '' if e.used_on|length == 1 else 's' }}</span>
+          {% for pid in e.used_on[:4] %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=pid) }}">{{ pid }}</a>{% endfor %}
+          {% if e.used_on|length > 4 %}<a class="pid" href="{{ url_for('main.ref', domain=domain, slug=e.slug) }}">+{{ e.used_on|length - 4 }}</a>{% endif %}
+        </li>{% endfor %}</ul>
+    {% endif %}
+    {% if xp.mentions %}
+      <h4>Referenced here, defined elsewhere</h4>
+      <ul>{% for e in xp.mentions %}
+        <li><a href="{{ url_for('main.ref', domain=domain, slug=e.slug) }}">{{ e.label }}</a>
+          {% if e.name %}<span class="dim">({{ e.name }})</span>{% endif %}
+          {% if e.defined %}<span class="dim">&rarr;</span>
+            {% for pid in e.defined[:4] %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=pid) }}">{{ pid }}</a>{% endfor %}
+          {% else %}<span class="dim">&middot; not defined in this corpus</span>{% endif %}
+        </li>{% endfor %}</ul>
+    {% endif %}
+  </details>
+  {% endif %}
+{% endmacro %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Summarise {{ b.title }}{% endblock %}
+{% block content %}
+  <nav class="crumbs"><a href="{{ url_for('main.index') }}">Resonance</a> / <a href="{{ url_for('library.index') }}">Library</a> /
+    <a href="{{ url_for('library.book', slug=b.slug) }}">{{ b.slug }}</a> / <span>summarise</span></nav>
+  <h1>Summarise &middot; {{ b.title }}</h1>
+  <p class="meta">DeepSeek <code>{{ settings.model }}</code> &middot; temperature {{ settings.temperature }} &middot; thinking on &middot;
+    {{ ndone }} OCR pages &middot; {{ nsumm }} summarised &middot; writes to <code>knowledge/{{ dom }}/summaries/</code>
+    &middot; key: {% if key_ok %}<span style="color:var(--ok)">found</span>{% else %}<span class="flag">not found (deepSeek/key.md)</span>{% endif %}</p>
+
+  {# ---------------- prompt ---------------- #}
+  <section class="ocrpanel" id="sec-prompt">
+    <h2 class="xh">Prompt for <code>{{ dom }}</code></h2>
+    <p class="dim note">This system prompt is sent with every page. Each saved summary records the prompt's hash, so you can always tell which
+      prompt produced it. {% if prompt.source == 'default' %}<b>No prompt is saved for this book yet</b> &mdash; showing the generic default; saving creates one.{% endif %}</p>
+    <textarea id="prompt-text" class="prompt" spellcheck="false" rows="14">{{ prompt.text }}</textarea>
+    <p class="ocrbtns">
+      <button type="button" id="prompt-save" class="primary">Save as new version</button>
+      <button type="button" id="prompt-revert">Revert to saved</button>
+      <label class="dim">history
+        <select id="prompt-versions" class="miniselect"><option value="">&hellip;</option></select></label>
+      <span id="prompt-msg" class="dim"></span>
+      <span class="dim" id="prompt-hash" style="margin-left:auto"></span>
+    </p>
+  </section>
+
+  {# ---------------- live test ---------------- #}
+  <section class="ocrpanel" id="sec-test">
+    <h2 class="xh">Test on one page <span class="dim">(streams the model's thinking live; nothing is saved unless you choose to)</span></h2>
+    <div class="ocrform">
+      <label>page p <input type="number" id="t-n" min="0" max="{{ total - 1 }}" value="{{ prefill_n if prefill_n is not none else 0 }}"></label>
+      <label>max tokens <input type="number" id="t-max" min="1000" max="64000" value="{{ settings.max_tokens }}"></label>
+      <span class="dim" style="padding-bottom:6px">uses the prompt in the editor above, even if unsaved</span>
+    </div>
+    <p class="ocrbtns">
+      <button type="button" id="t-run" class="primary" {% if not key_ok %}disabled{% endif %}>Run test</button>
+      <button type="button" id="t-stop" disabled>Stop</button>
+      <button type="button" id="t-save" disabled>Save as this page's summary</button>
+      <span id="t-msg" class="dim"></span>
+    </p>
+    <div class="testgrid" id="t-grid" hidden>
+      <div class="srcpanel">
+        <h3 class="sub">thinking <span class="dim" id="t-think-n"></span></h3>
+        <pre class="live" id="t-think"></pre>
+      </div>
+      <div class="srcpanel">
+        <h3 class="sub">new summary <span class="dim" id="t-sum-n"></span></h3>
+        <div class="body live" id="t-sum"></div>
+      </div>
+      <div class="srcpanel">
+        <h3 class="sub">stored summary <span class="dim" id="t-cur-meta"></span></h3>
+        <div class="body live" id="t-cur"><p class="dim">none yet</p></div>
+      </div>
+    </div>
+    <p class="dim" id="t-stats"></p>
+    <details class="fold" id="t-ocr-d" hidden><summary>OCR text sent to the model</summary><pre class="rawmd" id="t-ocr"></pre></details>
+  </section>
+
+  {# ---------------- run ---------------- #}
+  <section class="ocrpanel" id="sec-run">
+    <h2 class="xh">Run on the book</h2>
+    <div class="ocrform">
+      <label>pages
+        <select id="r-select">
+          <option value="missing">all without a summary</option>
+          <option value="range">a range&hellip;</option>
+          <option value="failed">retry failed from last run</option>
+        </select></label>
+      <span id="r-range" hidden>
+        <label>from p <input type="number" id="r-start" min="0" max="{{ total - 1 }}" value="0"></label>
+        <label>to p <input type="number" id="r-end" min="0" max="{{ total - 1 }}" value="{{ total - 1 }}"></label>
+      </span>
+      <label class="chk" id="r-redo-l" hidden><input type="checkbox" id="r-redo"> replace existing (old ones go to history)</label>
+      <label title="Parallel API calls. Light on your machine; limited by the API's rate limits">workers <input type="number" id="r-workers" min="1" max="8" value="5"></label>
+      <label>max tokens <input type="number" id="r-max" min="1000" max="64000" value="{{ settings.max_tokens }}"></label>
+      <label title="Stop after this many pages (0 = no limit)">max pages <input type="number" id="r-cap" min="0" value="0"></label>
+    </div>
+
+    <div class="estbox" id="est">
+      <div><b id="e-pages">…</b><span>pages to do</span></div>
+      <div><b id="e-prompt">…</b><span>prompt tokens (est.)</span></div>
+      <div><b id="e-comp">…</b><span>completion tokens, typical → heavy</span></div>
+      <div><b id="e-cost">—</b><span>cost, if you enter rates</span></div>
+    </div>
+    <p class="dim note" id="e-note"></p>
+    <p class="ocrform" style="margin:0 0 6px">
+      <label class="dim" title="Optional. Stored only in this browser">$ per 1M input tokens <input type="number" step="0.001" min="0" id="rate-in"></label>
+      <label class="dim">$ per 1M output tokens <input type="number" step="0.001" min="0" id="rate-out"></label>
+      <span class="dim" style="padding-bottom:6px">an estimate only &mdash; your real spend is on the DeepSeek platform page</span>
+    </p>
+
+    <p class="ocrbtns">
+      <button type="button" id="r-start-btn" class="primary" {% if not key_ok %}disabled{% endif %}>Start summarising</button>
+      <button type="button" id="r-stop" disabled>Stop after in-flight pages</button>
+      <button type="button" id="r-retry" hidden>Retry failed</button>
+      <span id="r-msg" class="dim"></span>
+    </p>
+    <div id="j-box" class="jobbox" hidden>
+      <div class="jobline"><b id="j-status">idle</b> <span id="j-detail" class="dim"></span></div>
+      <div class="tierbar big"><i class="t-clean" id="j-bar" style="width:0"></i></div>
+      <div class="dim" id="j-eta"></div>
+      <div class="dim" id="j-flight"></div>
+      <div id="j-failed"></div>
+      <details class="fold"><summary>log</summary><pre class="joblog" id="j-log"></pre></details>
+    </div>
+  </section>
+
+  {# ---------------- re-summarise flagged ---------------- #}
+  <section class="ocrpanel" id="sec-flag">
+    <h2 class="xh">Re-summarise flagged pages</h2>
+    <p class="dim note">Pages from the review queue (truncated, outliers, deferred proofs&hellip;). Re-running uses the current prompt and the max tokens
+      above; the previous summary is kept in <code>summaries/history/</code>, never overwritten.</p>
+    <div id="f-list" class="flaglist"><span class="dim">loading&hellip;</span></div>
+    <p class="ocrbtns">
+      <button type="button" id="f-go" disabled {% if not key_ok %}title="no API key"{% endif %}>Re-summarise selected</button>
+      <span id="f-msg" class="dim"></span>
+    </p>
+  </section>
+
+  <script id="sum-data" type="application/json">{{ {'slug': b.slug, 'total': total, 'prefill': prefill_n, 'hash': prompt.hash, 'versions': prompt.versions}|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/summarise.js') }}"></script>
+{% endblock %}

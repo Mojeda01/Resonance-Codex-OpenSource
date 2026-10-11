@@ -1,0 +1,32 @@
+{% macro panel(domain, pm) %}
+  {% if pm %}{% set r = pm.r %}
+  <details class="xref analysis">
+    <summary>analysis &mdash; {{ "{:,}".format(r.summary_tokens) }} summary / {{ "{:,}".format(r.reasoning_tokens) }} thinking tokens
+      {% if pm.outliers %}<span class="chip warn">outlier</span>{% endif %}</summary>
+    <p class="dim">compared with the median content page of {{ r.chapter }} (tick = median)</p>
+    <div class="mbars">
+      {% for b in pm.bars %}
+        <div class="mrow"><span>{{ b.title }}</span>
+          <div class="mtrack"><i class="fill" style="width: {{ b.pct }}%"></i><i class="tick" style="left: {{ b.mpct }}%"></i></div>
+          <b>{{ b.value if b.value is string else "{:,}".format(b.value) if b.value is integer else b.value }}</b>
+          <em class="dim">med {{ b.median }}</em></div>
+      {% endfor %}
+    </div>
+    <p class="chips">
+      <span class="chip tier-{{ r.tier }}">dataset: {{ r.tier }}{% if r.reasons %} &middot; {{ r.reasons|join(', ') }}{% endif %}</span>
+      <span class="chip">finish: {{ r.finish or '—' }}{% if pm.budget_limit %} &middot; {{ r.budget_pct }}% of budget{% endif %}</span>
+      <span class="chip">{{ r.display_math }} display eq &middot; {{ r.inline_math }} inline</span>
+      <span class="chip">{{ r.defs }} def &middot; {{ r.results }} results &middot; {{ r.proofs }} proofs</span>
+      {% if r.nomath %}<span class="chip">no math content</span>{% endif %}
+      {% if r.flat %}<span class="chip warn">flat prose</span>{% endif %}
+      {% if r.gap_count %}<span class="chip warn">deferred/incomplete proof</span>{% endif %}
+      {% if r.cut_count %}<span class="chip">cut at page boundary</span>{% endif %}
+      {% if r.doubt_high %}<span class="chip warn">top-10% doubt about the source in reasoning trace ({{ r.uncertainty }} mentions)</span>{% endif %}
+      {% for o in pm.outliers %}<span class="chip warn" title="{{ o.note }}">{{ o.title }} {{ o.dir }} ({{ '%+.1f'|format(o.z) }})</span>{% endfor %}
+      {% for d in r.dups %}<a class="chip warn" href="{{ url_for('main.page', domain=domain, page_id=d) }}">near-duplicate of {{ d }}</a>{% endfor %}
+    </p>
+    {% if r.undef_refs %}<p class="dim">cites but never states: {{ r.undef_refs[:6]|join(', ') }}</p>{% endif %}
+    <p><a href="{{ url_for('main.analysis', domain=domain) }}">domain analysis &rarr;</a></p>
+  </details>
+  {% endif %}
+{% endmacro %}

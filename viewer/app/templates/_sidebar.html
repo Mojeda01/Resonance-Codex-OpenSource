@@ -1,0 +1,36 @@
+<aside id="sidebar">
+  <a class="home" href="{{ url_for('main.index') }}"><span><b>Resonance</b><small>Knowledge Platform</small></span></a>
+  <form action="{{ url_for('main.search') }}" class="search">
+    <input type="search" name="q" value="{{ request.args.get('q', '') }}"
+           placeholder="search all summaries ( / )" id="q" autocomplete="off">
+  </form>
+  <input type="text" id="filter" placeholder="filter pages ( f )" autocomplete="off">
+  <button type="button" class="goto" id="open-palette">go to page&hellip; <kbd>g</kbd></button>
+  <a class="rand" href="{{ url_for('library.index') }}">&#128196; Library &amp; OCR</a>
+  <div id="recent" hidden></div>
+  {% for d in nav_domains %}
+    <details class="dom" {% if d == domain or nav_domains|length == 1 %}open{% endif %}>
+      <summary>{{ d }} <span class="count">{{ nav_counts[d] }}</span></summary>
+      <a class="rand" href="{{ url_for('main.xref_index', domain=d) }}">&sect; index of terms &amp; results</a>
+      <a class="rand" href="{{ url_for('main.read', domain=d) }}">&#9776; read whole domain</a>
+      <a class="rand" href="{{ url_for('main.analysis', domain=d) }}">&#9638; token &amp; structure analysis</a>
+      <a class="rand" href="{{ url_for('main.problems', domain=d) }}">&#9888; problem pages</a>
+      <a class="rand" href="{{ url_for('main.random_page', domain=d) }}">&#8635; random page</a>
+      {% for g in nav_groups[d] %}
+        <details class="chap" data-chapter="{{ g.label }}"
+                 {% if d == domain and page_id in g.pages|map(attribute='page_id') %}open{% endif %}>
+          <summary>{{ g.label }} <span class="count">{{ g.count }}</span></summary>
+          {% for p in g.pages %}
+            <a href="{{ url_for('main.page', domain=d, page_id=p.page_id) }}"
+               data-domain="{{ d }}" data-label="{{ p.label }}" data-chapter="{{ g.label }}"
+               data-name="{{ (p.page_id ~ ' ' ~ p.label ~ ' ' ~ g.label)|lower }}"
+               title="{{ p.page_id }}{% if p.label %} — {{ p.label }}{% endif %}"
+               class="pg {% if d == domain and p.page_id == page_id %}on{% endif %}
+                      {% if 'truncated' in p.flags %}trunc{% endif %}
+                      {% if 'nomath' in p.flags or 'empty' in p.flags %}dimpg{% endif %}"><span class="id">{{ p.page_id }}</span><span class="lb">{{ p.label }}</span></a>
+          {% endfor %}
+        </details>
+      {% endfor %}
+    </details>
+  {% endfor %}
+</aside>

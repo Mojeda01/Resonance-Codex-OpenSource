@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ domain }} index{% endblock %}
+{% block content %}
+  <h1>{{ domain }} / index</h1>
+  <p class="meta">{{ total }} results, definitions and sections &middot;
+    <a href="{{ url_for('main.read', domain=domain) }}">read whole domain</a></p>
+  <input type="text" id="xfilter" class="wide" placeholder="filter ( e.g. 18.29, nash )" autocomplete="off">
+  <p class="kinds">{% for k in groups %}<a href="#k-{{ k }}">{{ k }} ({{ groups[k]|length }})</a>{% endfor %}</p>
+  {% for k, items in groups.items() %}
+    <section id="k-{{ k }}" class="xgroup">
+      <h2>{{ k }}</h2>
+      {% for e in items %}
+        <div class="xrow" data-q="{{ (e.label ~ ' ' ~ e.name)|lower }}">
+          <a href="{{ url_for('main.ref', domain=domain, slug=e.slug) }}">{{ e.label }}</a>
+          {% if e.name %}<span class="dim">({{ e.name }})</span>{% endif %}
+          <span class="dim">&middot;
+            {% if e.defined %}defined
+              {% for pid in e.defined[:3] %}<a class="pid" href="{{ url_for('main.page', domain=domain, page_id=pid) }}">{{ pid }}</a>{% endfor %}
+            {% else %}no definition page{% endif %}
+            &middot; used on {{ e.used_on|length }}</span>
+        </div>
+      {% endfor %}
+    </section>
+  {% endfor %}
+  <script>
+    document.getElementById('xfilter').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.xrow').forEach(r => { r.hidden = q && !r.dataset.q.includes(q); });
+      document.querySelectorAll('.xgroup').forEach(g => { g.hidden = ![...g.querySelectorAll('.xrow')].some(r => !r.hidden); });
+    });
+  </script>
+{% endblock %}

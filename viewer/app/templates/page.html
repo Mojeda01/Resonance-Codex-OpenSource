@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_xref_panel.html" import panel %}
+{% from "_analysis_panel.html" import panel as apanel %}
+{% block title %}{{ domain }}/{{ s.page_id }}{% endblock %}
+{% macro skip(ref, text, key) %}
+  {% if ref %}<a href="{{ ref.url }}" title="{{ ref.text }}{% if ref.label %} — {{ ref.label }}{% endif %}" data-key="{{ key }}">{{ text|safe }}</a>{% else %}<span class="off">{{ text|safe }}</span>{% endif %}
+{% endmacro %}
+{% block content %}
+  <nav class="crumbs">
+    <a href="{{ url_for('main.index') }}">Resonance</a> /
+    <a href="{{ url_for('main.index') }}#{{ domain }}">{{ domain }}</a> /
+    <a href="{{ url_for('main.index') }}#{{ domain }}-{{ meta.chapter }}">{{ meta.chapter_label }}</a> /
+    <span>{{ s.page_id }}</span>
+  </nav>
+  <nav class="pager">
+    {% if prev_p %}<a id="prev" href="{{ prev_p.url }}" title="{{ prev_p.label }}">&larr; {{ prev_p.text }}</a>{% else %}<span></span>{% endif %}
+    {% if next_p %}<a id="next" href="{{ next_p.url }}" title="{{ next_p.label }}">{{ next_p.text }} &rarr;</a>{% endif %}
+  </nav>
+  <div class="scrubber">
+    <input type="range" id="scrub" min="1" max="{{ total }}" value="{{ pos }}" data-domain="{{ domain }}" aria-label="page position">
+    <output id="scrub-out">{{ pos }} / {{ total }}</output>
+  </div>
+  <nav class="skips">
+    <span class="dim">skip</span>
+    {{ skip(skips.prev_ch, '&laquo; chapter', 'N') }}{{ skip(skips.next_ch, 'chapter &raquo;', 'n') }}
+    <span class="sep">&middot;</span>
+    {{ skip(skips.prev_def, '&lsaquo; definition', '[') }}{{ skip(skips.next_def, 'definition &rsaquo;', ']') }}
+    <span class="sep">&middot;</span>
+    {{ skip(skips.prev_trunc, '&lsaquo; truncated', 'T') }}{{ skip(skips.next_trunc, 'truncated &rsaquo;', 't') }}
+  </nav>
+  <h1>{{ s.page_id }}{% if s.truncated %} <span class="flag">truncated</span>{% endif %}</h1>
+  {% if meta.label %}<p class="label">{{ meta.label }}</p>{% endif %}
+  <p class="meta">
+    {{ s.source }} &middot; {{ s.model }} &middot;
+    {{ "{:,}".format(s.corpus_tokens) }} corpus / {{ "{:,}".format(s.reasoning_tokens) }} thinking
+    &middot; {{ "{:,}".format(words) }} words &middot; ~{{ [1, (words / 220)|round|int]|max }} min
+    &middot; <button type="button" id="copy-md" class="link">copy markdown</button>
+  </p>
+
+  <div id="toc" class="toc" hidden></div>
+  {{ panel(domain, xp) }}
+  {{ apanel(domain, pm) }}
+  <div class="body" id="body" data-refs='{{ refs|tojson }}' data-markdown="{{ s.summary }}"></div>
+
+  {% if s.reasoning %}
+    <details id="trace" class="trace-view">
+      <summary>reasoning trace &mdash; {{ "{:,}".format(s.reasoning|length) }} chars
+        &middot; hedging {{ tr.stats.per100 }}/100 words (domain median {{ tr.stats.domain_median }})
+        &middot; loop check: <span class="loop-{{ tr.stats.loop }}">{{ tr.stats.loop }}</span></summary>
+      <div id="trace-root"></div>
+    </details>
+    <script id="trace-data" type="application/json">{{ tr|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/trace.js') }}"></script>
+  {% endif %}
+{% endblock %}

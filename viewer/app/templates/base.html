@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Home{% endblock %} · Resonance Knowledge Platform</title>
+  <script>try { var t = (localStorage.getItem('kb:theme') || '').replace(/"/g, ''); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <script src="{{ url_for('static', filename='js/mathjax-config.js') }}"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+</head>
+<body data-domain="{{ domain or '' }}" data-page="{{ page_id or '' }}">
+  <div id="progress"></div>
+  <button type="button" id="theme" title="toggle light / dark" aria-label="toggle theme">&#9680;</button>
+  <button type="button" id="menu" aria-label="toggle navigation">&#9776;</button>
+  {% include "_sidebar.html" %}
+  <div id="scrim"></div>
+  <main>
+    {% if code_stale %}<div class="stale">The app's Python code changed after this server started, so new pages or routes may be missing.
+      Restart it: stop the server (Ctrl-C) and run <code>python run.py</code> again.</div>{% endif %}
+    <div id="backbar" hidden></div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <div class="modal" id="palette" hidden>
+    <div class="box">
+      <input type="text" id="pal-q" placeholder="page number, id, topic or chapter&hellip;" autocomplete="off">
+      <ul id="pal-list"></ul>
+      <p class="dim">&uarr;&darr; select &middot; Enter open &middot; Esc close</p>
+    </div>
+  </div>
+  <div class="modal" id="help" hidden>
+    <div class="box">
+      <h3>keyboard</h3>
+      <dl class="keys">
+        <dt>j / &rarr;</dt><dd>next page</dd><dt>k / &larr;</dt><dd>previous page</dd>
+        <dt>] / [</dt><dd>next / previous page that defines something</dd>
+        <dt>n / N</dt><dd>next / previous chapter</dd>
+        <dt>t / T</dt><dd>next / previous truncated page</dd>
+        <dt>g or Ctrl+K</dt><dd>go to page (number, id or topic)</dd>
+        <dt>/</dt><dd>search all summaries</dd><dt>f</dt><dd>filter sidebar</dd>
+        <dt>b</dt><dd>back to where you followed a link from</dd>
+        <dt>?</dt><dd>this help</dd><dt>Esc</dt><dd>close / leave a field</dd>
+      </dl>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/xref.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/render.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/nav.js') }}"></script>
+</body>
+</html>

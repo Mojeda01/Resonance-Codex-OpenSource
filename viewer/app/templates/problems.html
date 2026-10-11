@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ domain }} review queue{% endblock %}
+{% block content %}
+  <h1>{{ domain }} / review queue</h1>
+  <p class="meta">pages that are excluded from, or need a look before joining, the dataset &middot;
+    <a href="{{ url_for('main.problems', domain=domain) }}">all</a>
+    {% for k, v in totals.items() %} &middot; <a href="{{ url_for('main.problems', domain=domain, kind=k) }}">{{ k }} ({{ v }})</a>{% endfor %}
+    &middot; <a href="{{ url_for('main.dataset', domain=domain, tier='review') }}">export review set</a>
+  </p>
+  {% for sec in sections %}
+    <h2 class="xh">{{ sec.title }} ({{ sec.rows|length }})</h2>
+    {% for r in sec.rows %}
+      <div class="xrow">
+        <a href="{{ url_for('main.page', domain=domain, page_id=r.page_id) }}">{{ r.page_id }}</a>
+        <span class="dim">{{ r.chapter_label }} &middot; {{ r.label }}</span>
+        <span class="chip {{ 'warn' if r.tier != 'clean' else '' }}">{{ r.tier }}</span>
+      </div>
+    {% else %}<p class="dim">none</p>{% endfor %}
+  {% endfor %}
+{% endblock %}

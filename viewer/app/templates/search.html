@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}search: {{ q }}{% endblock %}
+{% block content %}
+  <h1>search</h1>
+  <p class="meta">{{ total }} result{{ '' if total == 1 else 's' }} for &ldquo;{{ q }}&rdquo;{% if total > hits|length %} (showing the top {{ hits|length }}){% endif %}</p>
+  {% if q %}<p class="kinds">
+    <a href="{{ url_for('main.search', q=q) }}" {% if not domain %}class="on"{% endif %}>all sources</a>
+    {% for d in all_domains %}<a href="{{ url_for('main.search', q=q, domain=d) }}" {% if domain == d %}class="on"{% endif %}>{{ d }} ({{ counts.get(d, 0) }})</a>{% endfor %}
+  </p>{% endif %}
+  {% for h in hits %}
+    <div class="hit">
+      <a href="{{ url_for('main.page', domain=h.domain, page_id=h.page_id, q=q) }}">{{ h.domain }}/{{ h.page_id }}</a>
+      {% if h.truncated %}<span class="flag">truncated</span>{% endif %}
+      <span class="meta">{{ h.count }} match{{ '' if h.count == 1 else 'es' }}</span>
+      <p class="snip" data-terms="{{ h.terms|join(' ') }}">{{ h.snippet }}</p>
+    </div>
+  {% else %}
+    <p class="meta">No matches.</p>
+  {% endfor %}
+{% endblock %}

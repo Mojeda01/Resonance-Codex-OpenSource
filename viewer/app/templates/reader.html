@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_xref_panel.html" import panel %}
+{% block title %}{{ domain }} reader {{ chunk + 1 }}{% endblock %}
+{% block content %}
+  {% macro pager() %}
+    <nav class="pager">
+      {% if chunk > 0 %}<a href="{{ url_for('main.read', domain=domain, chunk=chunk - 1) }}">&larr; part {{ chunk }}</a>{% else %}<span></span>{% endif %}
+      <span class="dim">part {{ chunk + 1 }} / {{ n_chunks }}</span>
+      {% if chunk + 1 < n_chunks %}<a href="{{ url_for('main.read', domain=domain, chunk=chunk + 1) }}">part {{ chunk + 2 }} &rarr;</a>{% else %}<span></span>{% endif %}
+    </nav>
+  {% endmacro %}
+  <h1>{{ domain }} / read</h1>
+  <p class="meta">pages {{ first }}&ndash;{{ first + items|length - 1 }} of {{ total }} &middot;
+    <a href="{{ url_for('main.xref_index', domain=domain) }}">index</a></p>
+  {{ pager() }}
+  <details class="toc" open>
+    <summary>pages in this part</summary>
+    <ul>{% for it in items %}
+      <li><a href="#{{ it.p.page_id }}">{{ it.p.page_id }}</a>
+        {% for e in it.xp.defines[:4] %}<span class="dim">&middot; {{ e.label }}</span>{% endfor %}</li>
+    {% endfor %}</ul>
+  </details>
+  {% for it in items %}
+    <section class="rpage" id="{{ it.p.page_id }}">
+      <h2 class="rhead"><a href="{{ url_for('main.page', domain=domain, page_id=it.p.page_id) }}">{{ it.p.page_id }}</a>
+        {% if it.p.truncated %}<span class="flag">truncated</span>{% endif %}</h2>
+      {{ panel(domain, it.xp) }}
+      <div class="body" data-refs='{{ it.refs|tojson }}' data-markdown="{{ it.s.summary }}"></div>
+    </section>
+  {% endfor %}
+  {{ pager() }}
+{% endblock %}
